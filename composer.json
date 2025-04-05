@@ -27,9 +27,6 @@
       "tzabzlat\\yii2sentry\\": "src/"
     }
   },
-  "extra": {
-    "bootstrap": "tzabzlat\\yii2sentry\\SentryComponent"
-  },
   "config": {
     "process-timeout": 1800,
     "fxp-asset": {
