@@ -1,0 +1,39 @@
+{
+  "name": "tzabzlat/yii2-sentry",
+  "description": "Sentry integration for Yii2 framework with performance monitoring and error tracking",
+  "type": "yii2-extension",
+  "keywords": ["yii2", "sentry", "monitoring", "error tracking", "apm"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Anatolii Afanasev",
+      "email": "tzabzlat@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "yiisoft/yii2": "~2.0.14",
+    "sentry/sentry": "^4.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "~9.0",
+    "yiisoft/yii2-httpclient": "~2.0.0"
+  },
+  "suggest": {
+    "yiisoft/yii2-httpclient": "Required for HTTP client monitoring"
+  },
+  "autoload": {
+    "psr-4": {
+      "tzabzlat\\yii2sentry\\": "src/"
+    }
+  },
+  "extra": {
+    "bootstrap": "tzabzlat\\yii2sentry\\SentryComponent"
+  },
+  "config": {
+    "process-timeout": 1800,
+    "fxp-asset": {
+      "enabled": false
+    }
+  }
+}
