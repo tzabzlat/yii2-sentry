@@ -358,7 +358,8 @@ class SentryComponent extends Component implements BootstrapInterface
             ],
             CollectorsEnum::REQUEST_COLLECTOR => [
                 'class' => RequestCollector::class,
-                'captureUser' => true
+                'captureUser' => true,
+                'excludeStatusCodes' => [404],
             ],
             CollectorsEnum::DB_COLLECTOR => [
                 'class' => DbCollector::class,

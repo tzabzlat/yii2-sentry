@@ -23,7 +23,12 @@ use yii\web\User;
 class RequestCollector extends BaseCollector
 {
 
-    public $captureUser = true;
+    public bool $captureUser = true;
+
+    /**
+     * @var array HTTP status codes to exclude from performance monitoring
+     */
+    public array $excludeStatusCodes = [404];
 
     /**
      * @var float Timestamp when the request started
@@ -277,6 +282,12 @@ class RequestCollector extends BaseCollector
         }
 
         $statusCode = $response->getStatusCode();
+
+        // Skip transaction for excluded status codes
+        if (in_array($statusCode, $this->excludeStatusCodes) && $this->transaction) {
+            $this->transaction->setSampled(false);
+            Yii::info("Transaction not sent to Sentry (excluded status code: {$statusCode})", $this->logCategory);
+        }
 
         $this->requestData['status_code'] = $statusCode;
         $this->requestData['content_type'] = $response->getHeaders()->get('Content-Type');
