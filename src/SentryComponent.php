@@ -366,7 +366,20 @@ class SentryComponent extends Component implements BootstrapInterface
             ]
         ];
 
-        return array_merge_recursive($default, $this->collectorsConfig);
+        $merged = $default;
+
+        // Apply custom configurations or disable collectors
+        foreach ($this->collectorsConfig as $key => $config) {
+            if ($config === false) {
+                unset($merged[$key]); // Disable collector
+            } elseif (is_array($config) && array_key_exists($key, $merged)) {
+                $merged[$key] = array_merge_recursive($merged[$key], $config); // Customize collector
+            } elseif (!isset($merged[$key])) {
+                $merged[$key] = $config; // Add custom collector
+            }
+        }
+
+        return $merged;
     }
 
     protected function checkShouldSample(): bool
