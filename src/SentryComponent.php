@@ -76,6 +76,8 @@ class SentryComponent extends Component implements BootstrapInterface
      */
     private array $parentSpans = [];
 
+    protected bool $samplingNow = false;
+
     /**
      * {@inheritdoc}
      */
@@ -85,11 +87,11 @@ class SentryComponent extends Component implements BootstrapInterface
             return;
         }
 
-        $shouldSample = $this->checkShouldSample();
+        $this->samplingNow = $this->checkShouldSample();
 
         $collectorConfig = $this->prepareCollectorsConfig();
 
-        if (!$shouldSample) {
+        if (!$this->samplingNow) {
             $collectorConfig = array_filter($collectorConfig, function ($key) {
                 return $key === CollectorsEnum::LOG_COLLECTOR;
             }, ARRAY_FILTER_USE_KEY);
@@ -153,6 +155,10 @@ class SentryComponent extends Component implements BootstrapInterface
      */
     public function trace(string $name, callable $callable, ?string $op = null, array $initialData = [])
     {
+        if (!$this->samplingNow) {
+            return $callable();
+        }
+
         $span = $this->startSpan($name, $op ?? SpanOpEnum::CUSTOM, $initialData);
 
         if ($span === null) {
