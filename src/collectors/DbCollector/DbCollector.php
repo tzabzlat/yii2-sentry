@@ -24,6 +24,11 @@ class DbCollector extends BaseCollector
     public int $slowQueryThreshold = 100;
 
     /**
+     * @var int Connection open duration threshold (in ms) after which connection is considered slow
+     */
+    public int $slowConnectionThreshold = 50;
+
+    /**
      * @var array Active spans by profiling tokens
      */
     protected array $activeSpans = [];
@@ -54,6 +59,7 @@ class DbCollector extends BaseCollector
 
         $this->enableDbProfiling();
         $this->attachQueryEvents();
+        $this->attachConnectionEvents();
         $this->attachTransactionEvents();
 
         return true;
@@ -67,6 +73,17 @@ class DbCollector extends BaseCollector
             'tzabzlat\yii2sentry\collectors\DbCollector\DbCommand::internalExecute',
             [$this, 'handleProfileBegin'],
             [$this, 'handleProfileEnd']
+        );
+    }
+
+    protected function attachConnectionEvents(): void
+    {
+        $logger = Yii::getLogger();
+
+        $logger->registerHandler(
+            'yii\db\Connection::open',
+            [$this, 'handleConnectionBegin'],
+            [$this, 'handleConnectionEnd']
         );
     }
 
@@ -148,6 +165,78 @@ class DbCollector extends BaseCollector
                 'dsn' => $event->sender->dsn,
             ], Breadcrumb::LEVEL_WARNING, SpanOpEnum::DB_TRANSACTION);
         });
+    }
+
+    public function handleConnectionBegin(string $token, string $category): void
+    {
+        $uniqueToken = 'connection_' . $token . '_' . microtime(true);
+
+        $this->queryStartInfo[$uniqueToken] = [
+            'timestamp' => microtime(true),
+            'category' => $category,
+            'original_token' => $token
+        ];
+
+        $span = $this->sentryComponent->startSpan(
+            'Database connection',
+            SpanOpEnum::DB_CONNECTION,
+            [
+                'category' => $category,
+            ]
+        );
+
+        if ($span) {
+            $this->activeSpans[$uniqueToken] = $span;
+        }
+    }
+
+    public function handleConnectionEnd(string $token): void
+    {
+        $uniqueToken = null;
+
+        foreach ($this->queryStartInfo as $key => $info) {
+            if ($info['original_token'] === $token && strpos($key, 'connection_') === 0) {
+                $uniqueToken = $key;
+                break;
+            }
+        }
+
+        if (!$uniqueToken || !isset($this->activeSpans[$uniqueToken]) || !isset($this->queryStartInfo[$uniqueToken])) {
+            Yii::error('Cannot find connection span for finish by token ' . $token, $this->logCategory);
+            return;
+        }
+
+        $span = $this->activeSpans[$uniqueToken];
+        $startInfo = $this->queryStartInfo[$uniqueToken];
+
+        $duration = (microtime(true) - $startInfo['timestamp']) * 1000;
+
+        $isSlowConnection = $duration > $this->slowConnectionThreshold;
+
+        $this->sentryComponent->finishSpan($span, [
+            'duration' => round($duration, 2) . ' ms',
+            'slow_connection' => $isSlowConnection ? 'yes' : 'no',
+        ]);
+
+        $message = "Database connection opened";
+
+        if ($isSlowConnection) {
+            $message .= " (SLOW: " . round($duration, 2) . " ms)";
+        }
+
+        $level = $isSlowConnection ? Breadcrumb::LEVEL_WARNING : Breadcrumb::LEVEL_INFO;
+
+        $this->addBreadcrumb(
+            $message,
+            [
+                'duration' => round($duration, 2) . ' ms',
+            ],
+            $level,
+            SpanOpEnum::DB_CONNECTION
+        );
+
+        unset($this->activeSpans[$uniqueToken]);
+        unset($this->queryStartInfo[$uniqueToken]);
     }
 
     public function handleProfileBegin(string $token, string $category): void
