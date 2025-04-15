@@ -44,6 +44,14 @@ class LogTarget extends Target
     }
 
     /**
+     * @inheritdoc
+     */
+    protected function getContextMessage()
+    {
+        return '';
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function export(): void
@@ -72,12 +80,23 @@ class LogTarget extends Target
             return;
         }
 
+        // Prepare extra data
+        $extra = [
+            'traces' => $this->formatTraces($traces),
+        ];
+
+        // Add context information if logVars are set
+        if (!empty($this->logVars)) {
+            $extra['context'] = parent::getContextMessage();
+        }
+
         // Handle exceptions differently
         if ($text instanceof Throwable) {
             $this->captureException($text, [
                 'level' => $this->getLevelName($level),
                 'logger' => $category,
                 'timestamp' => $timestamp,
+                'extra' => $extra,
             ]);
             return;
         }
@@ -91,9 +110,7 @@ class LogTarget extends Target
         $this->captureMessage($text, $this->getLevelName($level), [
             'logger' => $category,
             'timestamp' => $timestamp,
-            'extra' => [
-                'traces' => $this->formatTraces($traces),
-            ],
+            'extra' => $extra,
         ]);
     }
 
@@ -116,6 +133,12 @@ class LogTarget extends Target
 
             if (isset($options['logger'])) {
                 $scope->setTag('logger', $options['logger']);
+            }
+
+            if (isset($options['extra'])) {
+                foreach ($options['extra'] as $key => $value) {
+                    $scope->setExtra($key, $value);
+                }
             }
 
             $hub->captureException($exception, $hint);

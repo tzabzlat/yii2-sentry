@@ -1,4 +1,7 @@
 # Yii2 Sentry
+[![Latest Stable Version](http://poser.pugx.org/tzabzlat/yii2-sentry/v)](https://packagist.org/packages/tzabzlat/yii2-sentry)
+[![License](http://poser.pugx.org/tzabzlat/yii2-sentry/license)](https://packagist.org/packages/tzabzlat/yii2-sentry) [![PHP Version Require](http://poser.pugx.org/tzabzlat/yii2-sentry/require/php)](https://packagist.org/packages/tzabzlat/yii2-sentry)
+
 *Read this in other languages: [English](README.md), [Русский](README.ru.md)*
 
 Компонент для интеграции [Sentry](https://sentry.io) с фреймворком Yii2.
@@ -31,14 +34,17 @@ composer require tzabzlat/yii2-sentry
 
 ```php
 'bootstrap' => ['sentry'],
+'log'          => [
+    'logger'  => 'tzabzlat\yii2sentry\Logger',
+]
 'components' => [
     'sentry' => [
         'class' => 'tzabzlat\yii2sentry\SentryComponent',
         'dsn' => 'https://your-sentry-dsn@sentry.io/project',
         'environment' => YII_ENV,
-        // Частота семплирования (процент запросов для сбора метрик производительности)
+        // Sampling rate (percentage of requests for performance metrics collection)
         'tracesSampleRatePercent' => YII_ENV_PROD ? 5 : 100,
-        // Дополнительные теги для всех событий
+        // Additional tags for all events
         'tags' => [
             'application' => 'app-api',
             'app_version' => '1.0.0',

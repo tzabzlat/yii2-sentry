@@ -22,6 +22,7 @@ use Sentry\Tracing\SpanStatus;
 use Yii;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
+use yii\helpers\ArrayHelper;
 
 /**
  * SentryComponent is a Yii2 component that integrates with Sentry for error tracking and performance monitoring.
@@ -93,7 +94,11 @@ class SentryComponent extends Component implements BootstrapInterface
 
         if (!$this->samplingNow) {
             $collectorConfig = array_filter($collectorConfig, function ($key) {
-                return $key === CollectorsEnum::LOG_COLLECTOR;
+                return !in_array($key, [
+                    CollectorsEnum::HTTP_CLIENT_COLLECTOR,
+                    CollectorsEnum::REQUEST_COLLECTOR,
+                    CollectorsEnum::DB_COLLECTOR
+                ]);
             }, ARRAY_FILTER_USE_KEY);
         }
 
@@ -122,6 +127,15 @@ class SentryComponent extends Component implements BootstrapInterface
             'profiles_sample_rate' => $this->profilesSampleRate,
             'release' => $this->getRelease(),
             'send_default_pii' => true,
+            'integrations' => function (array $integrations) {
+                return array_filter($integrations, function ($integration) {
+                    return !(
+                        ($integration instanceof \Sentry\Integration\ErrorListenerIntegration)
+                        || ($integration instanceof \Sentry\Integration\ExceptionListenerIntegration)
+                        || ($integration instanceof \Sentry\Integration\FatalErrorListenerIntegration)
+                    );
+                });
+            }
         ], $this->options);
 
         if (YII_DEBUG) {
@@ -379,7 +393,9 @@ class SentryComponent extends Component implements BootstrapInterface
             if ($config === false) {
                 unset($merged[$key]); // Disable collector
             } elseif (is_array($config) && array_key_exists($key, $merged)) {
-                $merged[$key] = array_merge_recursive($merged[$key], $config); // Customize collector
+                // Use Yii2's ArrayHelper to merge configurations
+                // This automatically handles ReplaceArrayValue and UnsetArrayValue objects
+                $merged[$key] = ArrayHelper::merge($merged[$key], $config);
             } elseif (!isset($merged[$key])) {
                 $merged[$key] = $config; // Add custom collector
             }

@@ -1,5 +1,9 @@
 # Yii2 Sentry
+[![Latest Stable Version](http://poser.pugx.org/tzabzlat/yii2-sentry/v)](https://packagist.org/packages/tzabzlat/yii2-sentry) 
+[![License](http://poser.pugx.org/tzabzlat/yii2-sentry/license)](https://packagist.org/packages/tzabzlat/yii2-sentry) [![PHP Version Require](http://poser.pugx.org/tzabzlat/yii2-sentry/require/php)](https://packagist.org/packages/tzabzlat/yii2-sentry)
+
 *Read this in other languages: [English](README.md), [Русский](README.ru.md)*
+
 
 A component for integrating [Sentry](https://sentry.io) with the Yii2 framework.
 Not just a LogTarget, but also application performance monitoring.
@@ -31,6 +35,9 @@ Add to your application configuration (not `common`):
 
 ```php
 'bootstrap' => ['sentry'],
+'log'          => [
+    'logger'  => 'tzabzlat\yii2sentry\Logger',
+]
 'components' => [
     'sentry' => [
         'class' => 'tzabzlat\yii2sentry\SentryComponent',
