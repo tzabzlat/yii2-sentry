@@ -4,8 +4,7 @@
 
 *Read this in other languages: [English](README.md), [Русский](README.ru.md)*
 
-Компонент для интеграции [Sentry](https://sentry.io) с фреймворком Yii2.
-Не только LogTarget, но и мониторинг производительности приложения.
+Комплексная интеграция [Sentry](https://sentry.io) с фреймворком Yii2: логирование, трассировка и профилирование.
 
 ## Возможности
 

@@ -4,9 +4,7 @@
 
 *Read this in other languages: [English](README.md), [Русский](README.ru.md)*
 
-
-A component for integrating [Sentry](https://sentry.io) with the Yii2 framework.
-Not just a LogTarget, but also application performance monitoring.
+Complete [Sentry](https://sentry.io) integration for Yii2 framework: logging, tracing and profiling.
 
 ## Features
 
