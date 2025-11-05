@@ -4,6 +4,7 @@ namespace tzabzlat\yii2sentry;
 
 use tzabzlat\yii2sentry\collectors\BaseCollector;
 use tzabzlat\yii2sentry\collectors\CollectorInterface;
+use tzabzlat\yii2sentry\collectors\ConsoleCollector;
 use tzabzlat\yii2sentry\collectors\DbCollector\DbCollector;
 use tzabzlat\yii2sentry\collectors\HttpClientCollector;
 use tzabzlat\yii2sentry\collectors\LogCollector\LogCollector;
@@ -97,6 +98,7 @@ class SentryComponent extends Component implements BootstrapInterface
                 return !in_array($key, [
                     CollectorsEnum::HTTP_CLIENT_COLLECTOR,
                     CollectorsEnum::REQUEST_COLLECTOR,
+                    CollectorsEnum::CONSOLE_COLLECTOR,
                     CollectorsEnum::DB_COLLECTOR
                 ]);
             }, ARRAY_FILTER_USE_KEY);
@@ -380,6 +382,9 @@ class SentryComponent extends Component implements BootstrapInterface
                 'class' => RequestCollector::class,
                 'captureUser' => true,
                 'excludeStatusCodes' => [404],
+            ],
+            CollectorsEnum::CONSOLE_COLLECTOR => [
+                'class' => ConsoleCollector::class,
             ],
             CollectorsEnum::DB_COLLECTOR => [
                 'class' => DbCollector::class,

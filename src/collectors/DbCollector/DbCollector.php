@@ -39,6 +39,13 @@ class DbCollector extends BaseCollector
     protected array $queryStartInfo = [];
 
     /**
+     * @var array Stack-based storage for tracking query tokens (LIFO)
+     * Maps original tokens to stacks of unique tokens
+     * Format: ['original_token' => ['unique_token_1', 'unique_token_2', ...]]
+     */
+    protected array $tokenStacks = [];
+
+    /**
      * Attaches event handlers to collect DB query information
      */
     public function attach(SentryComponent $sentryComponent): bool
@@ -169,13 +176,8 @@ class DbCollector extends BaseCollector
 
     public function handleConnectionBegin(string $token, string $category): void
     {
-        $uniqueToken = 'connection_' . $token . '_' . microtime(true);
-
-        $this->queryStartInfo[$uniqueToken] = [
-            'timestamp' => microtime(true),
-            'category' => $category,
-            'original_token' => $token
-        ];
+        // Create a unique token using uniqid for better uniqueness
+        $uniqueToken = uniqid('connection_' . $token . '_', true);
 
         $span = $this->sentryComponent->startSpan(
             'Database connection',
@@ -185,24 +187,66 @@ class DbCollector extends BaseCollector
             ]
         );
 
+        // Only track if span was successfully created
         if ($span) {
+            $this->queryStartInfo[$uniqueToken] = [
+                'timestamp' => microtime(true),
+                'category' => $category,
+                'original_token' => $token
+            ];
+
+            // Push the unique token onto the stack for this original token (LIFO)
+            $stackKey = 'connection_' . $token;
+            if (!isset($this->tokenStacks[$stackKey])) {
+                $this->tokenStacks[$stackKey] = [];
+            }
+            $this->tokenStacks[$stackKey][] = $uniqueToken;
+
             $this->activeSpans[$uniqueToken] = $span;
+
+            Yii::debug("DB Connection span started [Token: {$uniqueToken}]", $this->logCategory);
+        } else {
+            // Span creation failed - log why
+            Yii::debug("DB Connection span creation failed (no parent transaction): {$token}", $this->logCategory);
         }
     }
 
     public function handleConnectionEnd(string $token): void
     {
+        // Pop the most recent unique token from the stack for this connection token (LIFO)
         $uniqueToken = null;
-
-        foreach ($this->queryStartInfo as $key => $info) {
-            if ($info['original_token'] === $token && strpos($key, 'connection_') === 0) {
-                $uniqueToken = $key;
-                break;
+        $stackKey = 'connection_' . $token;
+        
+        if (isset($this->tokenStacks[$stackKey]) && !empty($this->tokenStacks[$stackKey])) {
+            $uniqueToken = array_pop($this->tokenStacks[$stackKey]);
+            
+            // Clean up empty stacks
+            if (empty($this->tokenStacks[$stackKey])) {
+                unset($this->tokenStacks[$stackKey]);
             }
         }
 
-        if (!$uniqueToken || !isset($this->activeSpans[$uniqueToken]) || !isset($this->queryStartInfo[$uniqueToken])) {
-            Yii::error('Cannot find connection span for finish by token ' . $token, $this->logCategory);
+        // If no token found, the span was never created (no parent transaction)
+        // This is expected behavior, not an error - just return silently
+        if (!$uniqueToken) {
+            return;
+        }
+
+        if (!isset($this->activeSpans[$uniqueToken]) || !isset($this->queryStartInfo[$uniqueToken])) {
+            // This should not happen if span was created - log as error
+            $stackInfo = isset($this->tokenStacks[$stackKey]) ? 'stack exists with ' . count($this->tokenStacks[$stackKey]) . ' items' : 'no stack';
+            $spanExists = isset($this->activeSpans[$uniqueToken]) ? 'yes' : 'no';
+            $infoExists = isset($this->queryStartInfo[$uniqueToken]) ? 'yes' : 'no';
+            
+            Yii::error(
+                "Cannot find connection span for finish by token. " .
+                "Token: {$token} | " .
+                "UniqueToken: {$uniqueToken} | " .
+                "Stack: {$stackInfo} | " .
+                "Span exists: {$spanExists} | " .
+                "Info exists: {$infoExists}",
+                $this->logCategory
+            );
             return;
         }
 
@@ -241,13 +285,8 @@ class DbCollector extends BaseCollector
 
     public function handleProfileBegin(string $token, string $category): void
     {
-        $uniqueToken = $token . '_' . microtime(true);
-
-        $this->queryStartInfo[$uniqueToken] = [
-            'timestamp' => microtime(true),
-            'category' => $category,
-            'original_token' => $token
-        ];
+        // Create a unique token using uniqid for better uniqueness
+        $uniqueToken = uniqid($token . '_', true);
 
         $type = $this->getQueryTypeFromCategory($category);
 
@@ -260,11 +299,27 @@ class DbCollector extends BaseCollector
             ]
         );
 
+        // Only track if span was successfully created
         if ($span) {
+            $this->queryStartInfo[$uniqueToken] = [
+                'timestamp' => microtime(true),
+                'category' => $category,
+                'original_token' => $token
+            ];
+
+            // Push the unique token onto the stack for this original token (LIFO)
+            if (!isset($this->tokenStacks[$token])) {
+                $this->tokenStacks[$token] = [];
+            }
+            $this->tokenStacks[$token][] = $uniqueToken;
+
             // Save span for completion at handleProfileEnd
             $this->activeSpans[$uniqueToken] = $span;
 
-            Yii::info("DB Span started: {$type}", $this->logCategory);
+            Yii::debug("DB Span started: {$type} [Token: {$uniqueToken}]", $this->logCategory);
+        } else {
+            // Span creation failed - log why
+            Yii::debug("DB Span creation failed (no parent transaction): {$type} - {$token}", $this->logCategory);
         }
     }
 
@@ -276,18 +331,39 @@ class DbCollector extends BaseCollector
      */
     public function handleProfileEnd(string $token): void
     {
-        // Find the matching unique token
+        // Pop the most recent unique token from the stack for this original token (LIFO)
         $uniqueToken = null;
-
-        foreach ($this->queryStartInfo as $key => $info) {
-            if ($info['original_token'] === $token) {
-                $uniqueToken = $key;
-                break;
+        
+        if (isset($this->tokenStacks[$token]) && !empty($this->tokenStacks[$token])) {
+            $uniqueToken = array_pop($this->tokenStacks[$token]);
+            
+            // Clean up empty stacks
+            if (empty($this->tokenStacks[$token])) {
+                unset($this->tokenStacks[$token]);
             }
         }
 
-        if (!$uniqueToken || !isset($this->activeSpans[$uniqueToken]) || !isset($this->queryStartInfo[$uniqueToken])) {
-            Yii::error('Cannot find span for finish by token ' . $token, $this->logCategory);
+        // If no token found, the span was never created (no parent transaction)
+        // This is expected behavior, not an error - just return silently
+        if (!$uniqueToken) {
+            return;
+        }
+
+        if (!isset($this->activeSpans[$uniqueToken]) || !isset($this->queryStartInfo[$uniqueToken])) {
+            // This should not happen if span was created - log as error
+            $stackInfo = isset($this->tokenStacks[$token]) ? 'stack exists with ' . count($this->tokenStacks[$token]) . ' items' : 'no stack';
+            $spanExists = isset($this->activeSpans[$uniqueToken]) ? 'yes' : 'no';
+            $infoExists = isset($this->queryStartInfo[$uniqueToken]) ? 'yes' : 'no';
+            
+            Yii::error(
+                "Cannot find span for finish by token. " .
+                "Token: " . substr($token, 0, 100) . "... | " .
+                "UniqueToken: {$uniqueToken} | " .
+                "Stack: {$stackInfo} | " .
+                "Span exists: {$spanExists} | " .
+                "Info exists: {$infoExists}",
+                $this->logCategory
+            );
             return;
         }
 
@@ -327,7 +403,7 @@ class DbCollector extends BaseCollector
             'db.query'
         );
 
-        Yii::info("DB Span completed: {$type} in " . round($duration, 2) . "ms", $this->logCategory);
+        Yii::debug("DB Span completed: {$type} in " . round($duration, 2) . "ms [Token: {$uniqueToken}]", $this->logCategory);
 
         // Clean up
         unset($this->activeSpans[$uniqueToken]);
