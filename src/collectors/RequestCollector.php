@@ -115,7 +115,7 @@ class RequestCollector extends BaseCollector
         try {
             $request = Yii::$app->getRequest();
 
-            $context = new TransactionContext();
+            $context = continueTrace($request->getHeaders()->get('sentry-trace', ''), $request->getHeaders()->get('baggage', ''));
 
             if (Yii::$app->requestedRoute) {
                 $name = Yii::$app->requestedRoute;
